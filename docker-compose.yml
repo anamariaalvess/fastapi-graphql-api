@@ -1,35 +1,61 @@
-version: '3.8'
-
 services:
-
   db:
-    container_name: postgresql_db
-    image: postgres
-    restart: always
-    ports: 
-      - 5432:5432
+    container_name: fastapi_graphql_db
+    image: postgres:16
+    restart: unless-stopped
     environment:
-      - POSTGRES_USER=${DB_USER}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_DB=${DB_NAME}
-  pgadmin:
-    container_name: pgadmin
-    image: dpage/pgadmin4
-    environment:
-      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_EMAIL}
-      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PASSWORD}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     ports:
-      - 5050:80
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${DB_USER} -d ${DB_NAME}"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  pgadmin:
+    container_name: fastapi_graphql_pgadmin
+    image: dpage/pgadmin4:latest
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+    ports:
+      - "5050:80"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
   app:
-    container_name: app
-    build: .
-    command: bash -c "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+    container_name: fastapi_graphql_app
+    build:
+      context: .
+    command: >
+      bash -c "
+      alembic upgrade head &&
+      uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+    env_file:
+      - .env
     volumes:
       - .:/app
     ports:
-      - 8000:8000
-    restart: always
+      - "8000:8000"
+    restart: unless-stopped
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  pgadmin_data:

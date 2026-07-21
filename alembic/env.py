@@ -1,5 +1,5 @@
 import os
-import models
+from app import models
 from logging.config import fileConfig
 from dotenv import load_dotenv
 from sqlalchemy import engine_from_config
